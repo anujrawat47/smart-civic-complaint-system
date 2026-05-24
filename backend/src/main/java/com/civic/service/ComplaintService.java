@@ -18,9 +18,7 @@ import java.util.Optional;
 
 /**
  * Complaint Service
- * 
- * Handles business logic for complaint operations.
- * This includes creating, updating, and managing complaints.
+ * Handles business logic for complaint operations
  */
 @Service
 @Transactional
@@ -28,22 +26,27 @@ public class ComplaintService {
 
     private final ComplaintRepository complaintRepository;
     private final ComplaintUpdateRepository complaintUpdateRepository;
+    private final AzureBlobService azureBlobService;
 
     @Autowired
     public ComplaintService(ComplaintRepository complaintRepository,
-                           ComplaintUpdateRepository complaintUpdateRepository) {
+                            ComplaintUpdateRepository complaintUpdateRepository,
+                            AzureBlobService azureBlobService) {
         this.complaintRepository = complaintRepository;
         this.complaintUpdateRepository = complaintUpdateRepository;
+        this.azureBlobService = azureBlobService;
     }
 
     /**
      * Submit a new complaint (citizen function)
      */
     public Complaint submitComplaint(ComplaintDto complaintDto, User user, String imagePath) {
+
         Complaint complaint = complaintDto.toEntity();
         complaint.setUser(user);
         complaint.setStatus(Complaint.Status.PENDING);
-        
+
+        // Image path now stores Azure Blob URL (NOT local file path)
         if (imagePath != null && !imagePath.isEmpty()) {
             complaint.setImagePath(imagePath);
         }
@@ -73,15 +76,12 @@ public class ComplaintService {
     }
 
     /**
-     * Get complaints by user (citizen's complaint history)
+     * Get complaints by user
      */
     public List<Complaint> getComplaintsByUser(User user) {
         return complaintRepository.findByUserOrderByCreatedAtDesc(user);
     }
 
-    /**
-     * Get complaints by user ID
-     */
     public List<Complaint> getComplaintsByUserId(Long userId) {
         return complaintRepository.findByUserIdOrderByCreatedAtDesc(userId);
     }
@@ -100,139 +100,136 @@ public class ComplaintService {
         return complaintRepository.findByCategoryOrderByCreatedAtDesc(category);
     }
 
-    /**
-     * Get unassigned complaints
-     */
     public List<Complaint> getUnassignedComplaints() {
         return complaintRepository.findUnassignedComplaints();
     }
 
-    /**
-     * Get complaints assigned to a worker
-     */
     public List<Complaint> getComplaintsAssignedToWorker(Long workerId) {
         return complaintRepository.findByAssignedWorker(workerId);
     }
 
-    /**
-     * Filter complaints by multiple criteria
-     */
-    public List<Complaint> filterComplaints(Complaint.Status status, 
-                                           Complaint.Category category,
-                                           Complaint.Priority priority) {
+    public List<Complaint> filterComplaints(Complaint.Status status,
+                                            Complaint.Category category,
+                                            Complaint.Priority priority) {
         return complaintRepository.filterComplaints(status, category, priority);
     }
 
-    /**
-     * Search complaints
-     */
     public List<Complaint> searchComplaints(String search) {
         return complaintRepository.searchComplaints(search);
     }
 
     /**
-     * Update complaint status (admin/worker function)
+     * Update complaint status
      */
-    public Complaint updateStatus(Long complaintId, Complaint.Status newStatus, User updatedBy, String message) {
+    public Complaint updateStatus(Long complaintId,
+                                  Complaint.Status newStatus,
+                                  User updatedBy,
+                                  String message) {
+
         Complaint complaint = complaintRepository.findById(complaintId)
                 .orElseThrow(() -> new RuntimeException("Complaint not found"));
 
         String oldStatus = complaint.getStatus().name();
         complaint.setStatus(newStatus);
 
-        // If resolved, set resolved timestamp
         if (newStatus == Complaint.Status.RESOLVED) {
             complaint.setResolvedAt(LocalDateTime.now());
         }
 
-        // Create update record
         ComplaintUpdate update = ComplaintUpdate.createStatusChange(
                 complaint, updatedBy, oldStatus, newStatus.name(), message);
+
         complaintUpdateRepository.save(update);
 
         return complaintRepository.save(complaint);
     }
 
     /**
-     * Update complaint priority (admin function)
+     * Update priority
      */
     public Complaint updatePriority(Long complaintId, Complaint.Priority newPriority) {
+
         Complaint complaint = complaintRepository.findById(complaintId)
                 .orElseThrow(() -> new RuntimeException("Complaint not found"));
+
         complaint.setPriority(newPriority);
         return complaintRepository.save(complaint);
     }
 
     /**
-     * Add progress update (worker function)
+     * Add progress update
      */
     public ComplaintUpdate addProgressUpdate(Long complaintId, User worker, String message) {
+
         Complaint complaint = complaintRepository.findById(complaintId)
                 .orElseThrow(() -> new RuntimeException("Complaint not found"));
 
         ComplaintUpdate update = new ComplaintUpdate(
-                complaint, worker, ComplaintUpdate.UpdateType.PROGRESS_UPDATE, message);
+                complaint,
+                worker,
+                ComplaintUpdate.UpdateType.PROGRESS_UPDATE,
+                message
+        );
+
         return complaintUpdateRepository.save(update);
     }
 
     /**
-     * Resolve complaint (worker function)
+     * Resolve complaint
      */
     public Complaint resolveComplaint(Long complaintId, User worker, String message) {
+
         Complaint complaint = complaintRepository.findById(complaintId)
                 .orElseThrow(() -> new RuntimeException("Complaint not found"));
 
         String oldStatus = complaint.getStatus().name();
+
         complaint.setStatus(Complaint.Status.RESOLVED);
         complaint.setResolvedAt(LocalDateTime.now());
 
-        // Create resolution update
         ComplaintUpdate update = new ComplaintUpdate(
-                complaint, worker, ComplaintUpdate.UpdateType.RESOLUTION, message);
+                complaint,
+                worker,
+                ComplaintUpdate.UpdateType.RESOLUTION,
+                message
+        );
+
         update.setOldStatus(oldStatus);
         update.setNewStatus(Complaint.Status.RESOLVED.name());
+
         complaintUpdateRepository.save(update);
 
         return complaintRepository.save(complaint);
     }
 
     /**
-     * Get updates for a complaint
+     * Get updates
      */
     public List<ComplaintUpdate> getComplaintUpdates(Long complaintId) {
         return complaintUpdateRepository.findByComplaintIdOrderByCreatedAtDesc(complaintId);
     }
 
     /**
-     * Count complaints by status
+     * Counts
      */
     public long countByStatus(Complaint.Status status) {
         return complaintRepository.countByStatus(status);
     }
 
-    /**
-     * Count complaints by category
-     */
     public long countByCategory(Complaint.Category category) {
         return complaintRepository.countByCategory(category);
     }
 
-    /**
-     * Count total complaints
-     */
     public long countAll() {
         return complaintRepository.count();
     }
 
-    /**
-     * Count complaints by user
-     */
     public long countByUser(User user) {
         return complaintRepository.countByUser(user);
     }
 
     /**
-     * Delete complaint (admin function - use with caution)
+     * Delete complaint
      */
     public void deleteComplaint(Long complaintId) {
         complaintRepository.deleteById(complaintId);
