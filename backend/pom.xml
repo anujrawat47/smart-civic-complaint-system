@@ -9,7 +9,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.0</version>
+        <version>3.2.2</version>
         <relativePath/>
     </parent>
     
@@ -31,7 +31,14 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
-        
+
+
+         <!-- Force correct logging stack -->
+         <dependency>
+             <groupId>org.springframework.boot</groupId>
+             <artifactId>spring-boot-starter-logging</artifactId>
+         </dependency>
+             
         <!-- Thymeleaf Template Engine - For server-side HTML rendering -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -105,19 +112,19 @@
     
     <build>
         <plugins>
-            <!-- Spring Boot Maven Plugin - For building executable JAR -->
+
+            <!-- Spring Boot Plugin (FIXED FOR AZURE) -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
-                    <excludes>
-                        <exclude>
-                            <groupId>org.projectlombok</groupId>
-                            <artifactId>lombok</artifactId>
-                        </exclude>
-                    </excludes>
+                    <layers>
+                        <enabled>true</enabled>
+                    </layers>
                 </configuration>
             </plugin>
+
         </plugins>
     </build>
+
 </project>
