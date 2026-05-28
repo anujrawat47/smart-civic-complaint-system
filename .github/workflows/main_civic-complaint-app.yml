@@ -1,7 +1,5 @@
-# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
-# More GitHub Actions for Azure: https://github.com/Azure/actions
-
-name: Build and deploy JAR app to Azure Web App - civic-complaint-app
+yaml
+name: Build and Deploy Spring Boot App to Azure
 
 on:
   push:
@@ -10,44 +8,34 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
+
     permissions:
-      contents: read #This is required for actions/checkout
+      contents: read
 
     steps:
-      - uses: actions/checkout@v4
+      # Checkout repository
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-      - name: Set up Java version
+      # Setup Java 17
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
           distribution: 'microsoft'
+          java-version: '17'
 
+      # Build Spring Boot project from backend folder
       - name: Build with Maven
-        run: mvn clean install
+        run: |
+          cd backend
+          mvn clean package
 
-      - name: Upload artifact for deployment job
-        uses: actions/upload-artifact@v4
-        with:
-          name: java-app
-          path: '${{ github.workspace }}/target/*.jar'
-
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build
-      
-    steps:
-      - name: Download artifact from build job
-        uses: actions/download-artifact@v4
-        with:
-          name: java-app
-      
+      # Deploy JAR file to Azure App Service
       - name: Deploy to Azure Web App
-        id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'civic-complaint-app'
-          slot-name: 'Production'
-          package: '*.jar'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_A182DCADF1EE45A69B1479036771E198 }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: 'backend/target/*.jar'
